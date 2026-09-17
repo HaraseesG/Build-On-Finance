@@ -21,7 +21,7 @@ class Goal {
       targetDate: map['target_date'] != null
           ? DateTime.parse(map['target_date'] as String)
           : null,
-      linkedCategoryId: map['linkedCategoryId'] as int?,
+      linkedCategoryId: map['linked_category_id'] as int?,
     );
   }
 

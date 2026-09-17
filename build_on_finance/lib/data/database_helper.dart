@@ -4,9 +4,17 @@ import 'package:path/path.dart';
 import 'package:sqflite/sqflite.dart';
 
 class DatabaseHelper {
-  DatabaseHelper._internal();
+  DatabaseHelper._internal({this._testDatabasePath});
+
+  // Single production instance shared throughout the app
   static final DatabaseHelper instance = DatabaseHelper._internal();
 
+  // isolated DatabaseHelper for tests backed by its own in-memory database
+  factory DatabaseHelper.forTesting() {
+    return DatabaseHelper._internal(testDatabasePath: inMemoryDatabasePath);
+  }
+
+  final String? _testDatabasePath;
   static Database? _db;
 
   Future<Database> get database async {
@@ -16,15 +24,25 @@ class DatabaseHelper {
   }
 
   Future<Database> _initDb() async {
-    final dbPath = await getDatabasesPath();
-    final path = join(dbPath, 'budget_tracker.db');
+    final path =
+        _testDatabasePath ??
+        join(await getDatabasesPath(), 'build_on_finance.db');
 
     return openDatabase(
       path,
       version: 1,
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,
+      singleInstance: _testDatabasePath == null,
     );
+  }
+
+  Future<void> close() async {
+    final db = _db;
+    if (db != null) {
+      await db.close();
+      _db = null;
+    }
   }
 
   Future<void> _onCreate(Database db, int version) async {
@@ -56,8 +74,11 @@ class DatabaseHelper {
         description TEXT,
         date TEXT NOT NULL,
         source TEXT NOT NULL CHECK (source IN ('manual', 'auto')),
+        type TEXT NOT NULL DEFAULT 'regular' CHECK (type IN ('regular', 'transfer')),
+        linked_transaction_id INTEGER,
         FOREIGN KEY (account_id) REFERENCES accounts (id),
-        FOREGIN KEY (category_id REFERENCES categories (id)
+        FOREIGN KEY (category_id) REFERENCES categories (id),
+        FOREIGN KEY (linked_transaction_id) REFERENCES transactions (id)
       )
     ''');
     await db.execute('''
